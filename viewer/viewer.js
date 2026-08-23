@@ -1,5 +1,6 @@
 var SUPPORTED_FORMATS = [
-  'pdf', 'doc', 'docx', 'rtf', 'txt', 'md', 'markdown'
+  'pdf', 'doc', 'docx', 'rtf', 'txt', 'md', 'markdown', 'epub',
+  'mobi', 'azw', 'azw3', 'fb2', 'cbz'
 ];
 
 var MAX_ATTEMPTS = 3;
@@ -27,7 +28,8 @@ function getExtension(filename) {
 function getFileBadge(ext) {
   var map = {
     pdf: 'PDF', docx: 'DOCX', doc: 'DOC',
-    rtf: 'RTF', txt: 'TXT', md: 'MD', markdown: 'MD'
+    rtf: 'RTF', txt: 'TXT', md: 'MD', markdown: 'MD', epub: 'EPUB',
+    mobi: 'MOBI', azw: 'AZW', azw3: 'AZW3', fb2: 'FB2', cbz: 'CBZ'
   };
   return map[ext] || ext.toUpperCase();
 }
@@ -167,6 +169,23 @@ function renderMD(arrayBuffer) {
   });
 }
 
+function renderEPUB(arrayBuffer) {
+  loadingIndicator.classList.add('hidden');
+  ensureEpub().then(function () {
+    try {
+      var html = epubToHtml(arrayBuffer);
+      var div = document.createElement('div');
+      div.className = 'doc-content';
+      div.innerHTML = html;
+      viewerContent.appendChild(div);
+    } catch (err) {
+      showError('Erro ao processar EPUB: ' + err.message);
+    }
+  }).catch(function () {
+    showError('Erro ao carregar biblioteca EPUB.');
+  });
+}
+
 function renderDoc(ext, data) {
   clearContent();
   switch (ext) {
@@ -177,6 +196,12 @@ function renderDoc(ext, data) {
     case 'txt': renderTXT(data); break;
     case 'md':
     case 'markdown': renderMD(data); break;
+    case 'epub': renderEPUB(data); break;
+    case 'mobi':
+    case 'azw':
+    case 'azw3': renderMOBI(data); break;
+    case 'fb2': renderFB2(data); break;
+    case 'cbz': renderCBZ(data); break;
     default: showError('Formato não suportado: .' + ext);
   }
 }
@@ -370,6 +395,161 @@ function ensureRtfParser() {
   return loadScript('../lib/rtf-parser.js');
 }
 
+function ensureEpub() {
+  if (window.epubToHtml && window.fflate && window.fflate.unzipSync) return Promise.resolve();
+  return loadScript('../lib/fflate.min.js').then(function () {
+    return loadScript('../lib/epub-reader.js');
+  });
+}
+
+function ensureFflate() {
+  if (window.fflate && window.fflate.unzipSync) return Promise.resolve();
+  return loadScript('../lib/fflate.min.js');
+}
+
+function loadModule(url) {
+  return import(chrome.runtime.getURL(url));
+}
+
+function ensureMobi() {
+  if (window.MOBI && window.isMOBI && window.fflate && window.fflate.unzlibSync) return Promise.resolve();
+  return ensureFflate().then(function () {
+    if (window.MOBI && window.isMOBI) return Promise.resolve();
+    return loadModule('../lib/foliate-mobi.js');
+  });
+}
+
+function renderMOBI(arrayBuffer) {
+  loadingIndicator.classList.add('hidden');
+  ensureMobi().then(function () {
+    var blob = new Blob([arrayBuffer], { type: 'application/x-mobipocket-ebook' });
+    var mobi = new window.MOBI({ unzlib: window.fflate.unzlibSync });
+    mobi.open(blob).then(function (book) {
+      var div = document.createElement('div');
+      div.className = 'doc-content';
+      var sections = [];
+      var promises = [];
+      for (var i = 0; i < book.sections.length; i++) {
+        (function (section, index) {
+          promises.push(section.load().then(function (url) {
+            return fetch(url).then(function (response) {
+              return response.text();
+            }).then(function (htmlText) {
+              var doc = new DOMParser().parseFromString(htmlText, 'text/html');
+              var imgs = doc.querySelectorAll('img[src^="blob:"]');
+              var imgPromises = [];
+              for (var j = 0; j < imgs.length; j++) {
+                (function (img) {
+                  imgPromises.push(
+                    fetch(img.src).then(function (res) { return res.blob(); })
+                    .then(function (imgBlob) {
+                      return new Promise(function (resolve, reject) {
+                        var reader = new FileReader();
+                        reader.onloadend = function () {
+                          var base64 = reader.result.split(',')[1];
+                          var mime = imgBlob.type || 'application/octet-stream';
+                          img.src = 'data:' + mime + ';base64,' + base64;
+                          resolve();
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(imgBlob);
+                      });
+                    }).catch(function () {})
+                  );
+                })(imgs[j]);
+              }
+              return Promise.all(imgPromises).then(function () {
+                sections[index] = doc.body ? doc.body.innerHTML : '';
+              });
+            });
+          }).catch(function () {
+            sections[index] = '';
+          }));
+        })(book.sections[i], i);
+      }
+      return Promise.all(promises).then(function () {
+        if (typeof book.destroy === 'function') book.destroy();
+        div.innerHTML = sections.join('\n');
+        viewerContent.appendChild(div);
+      });
+    }).catch(function (err) {
+      showError('Erro ao processar MOBI: ' + (err.message || 'Arquivo inválido ou protegido por DRM.'));
+    });
+  }).catch(function () {
+    showError('Erro ao carregar biblioteca MOBI.');
+  });
+}
+
+function ensureFB2() {
+  if (window.fb2ToHtml) return Promise.resolve();
+  return loadScript('../lib/fb2-reader.js');
+}
+
+function renderFB2(arrayBuffer) {
+  loadingIndicator.classList.add('hidden');
+  ensureFB2().then(function () {
+    try {
+      var html = window.fb2ToHtml(arrayBuffer);
+      var div = document.createElement('div');
+      div.className = 'doc-content';
+      div.innerHTML = html;
+      viewerContent.appendChild(div);
+    } catch (err) {
+      showError('Erro ao processar FB2: ' + err.message);
+    }
+  }).catch(function () {
+    showError('Erro ao carregar biblioteca FB2.');
+  });
+}
+
+function renderCBZ(arrayBuffer) {
+  loadingIndicator.classList.add('hidden');
+  ensureFflate().then(function () {
+    try {
+      var files = window.fflate.unzipSync(new Uint8Array(arrayBuffer));
+      var keys = Object.keys(files);
+      var imageKeys = [];
+      for (var k = 0; k < keys.length; k++) {
+        var lower = keys[k].toLowerCase();
+        if (/\.(png|jpe?g|gif|webp|bmp)$/.test(lower)) {
+          imageKeys.push(keys[k]);
+        }
+      }
+      if (!imageKeys.length) {
+        showError('Nenhuma imagem encontrada no CBZ.');
+        return;
+      }
+      imageKeys.sort();
+      var div = document.createElement('div');
+      div.className = 'doc-content';
+      for (var i = 0; i < imageKeys.length; i++) {
+        var img = document.createElement('img');
+        var bytes = files[imageKeys[i]];
+        var binary = '';
+        for (var j = 0; j < bytes.length; j++) binary += String.fromCharCode(bytes[j]);
+        img.src = 'data:' + mimeFromPath(imageKeys[i]) + ';base64,' + btoa(binary);
+        img.alt = imageKeys[i];
+        div.appendChild(img);
+      }
+      viewerContent.appendChild(div);
+    } catch (err) {
+      showError('Erro ao processar CBZ: ' + err.message);
+    }
+  }).catch(function () {
+    showError('Erro ao carregar biblioteca CBZ.');
+  });
+}
+
+function mimeFromPath(path) {
+  var ext = path.split('.').pop().toLowerCase();
+  var map = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', svg: 'image/svg+xml', bmp: 'image/bmp',
+    webp: 'image/webp'
+  };
+  return map[ext] || 'application/octet-stream';
+}
+
 function init() {
   downloadBtn.addEventListener('click', function () {
     if (!currentDocData || !currentDocName) return;
@@ -377,7 +557,10 @@ function init() {
     var mimeMap = {
       pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       doc: 'application/msword', rtf: 'application/rtf', txt: 'text/plain',
-      md: 'text/markdown', markdown: 'text/markdown'
+      md: 'text/markdown', markdown: 'text/markdown', epub: 'application/epub+zip',
+      mobi: 'application/x-mobipocket-ebook', azw: 'application/x-mobipocket-ebook',
+      azw3: 'application/x-mobipocket-ebook', fb2: 'application/fb2+xml',
+      cbz: 'application/vnd.comic+zip'
     };
     var mime = mimeMap[ext] || 'application/octet-stream';
     var a = document.createElement('a');

@@ -1,5 +1,6 @@
 var SUPPORTED_EXTENSIONS = [
-  'pdf', 'doc', 'docx', 'rtf', 'txt', 'md', 'markdown'
+  'pdf', 'doc', 'docx', 'rtf', 'txt', 'md', 'markdown', 'epub',
+  'mobi', 'azw', 'azw3', 'fb2', 'cbz'
 ];
 
 var STORAGE_CLEANUP_MS = 300000;
@@ -23,8 +24,13 @@ chrome.runtime.onInstalled.addListener(function () {
     targetUrlPatterns: [
       '*://*/*.pdf', '*://*/*.docx', '*://*/*.doc',
       '*://*/*.rtf', '*://*/*.txt', '*://*/*.md', '*://*/*.markdown',
+      '*://*/*.epub',
+      '*://*/*.mobi', '*://*/*.azw', '*://*/*.azw3',
+      '*://*/*.fb2', '*://*/*.cbz',
       '*://*/*.PDF', '*://*/*.DOCX', '*://*/*.DOC',
-      '*://*/*.RTF', '*://*/*.TXT', '*://*/*.MD'
+      '*://*/*.RTF', '*://*/*.TXT', '*://*/*.MD', '*://*/*.EPUB',
+      '*://*/*.MOBI', '*://*/*.AZW', '*://*/*.AZW3',
+      '*://*/*.FB2', '*://*/*.CBZ'
     ]
   });
   console.log('YKS-ViewDocs: Context menu registrado');

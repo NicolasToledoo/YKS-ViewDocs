@@ -1,6 +1,6 @@
 # YKS-ViewDocs
 
-Visualize documentos PDF, DOC, DOCX, RTF, TXT e MD diretamente no navegador sem sair da página atual.
+Visualize documentos PDF, DOC, DOCX, RTF, TXT, MD, EPUB, MOBI, AZW, AZW3, FB2 e CBZ diretamente no navegador sem sair da página atual.
 
 ## Formatos suportados
 
@@ -12,6 +12,10 @@ Visualize documentos PDF, DOC, DOCX, RTF, TXT e MD diretamente no navegador sem 
 | `.rtf`   | RTF (via rtf-parser) |
 | `.txt`   | Texto puro |
 | `.md` / `.markdown` | Markdown (via Marked) |
+| `.epub`  | EPUB (via fflate + epub-reader) |
+| `.mobi` / `.azw` / `.azw3` | MOBI/AZW (via foliate-js) |
+| `.fb2`   | FB2 (parser caseiro + DOMParser) |
+| `.cbz`   | CBZ (via fflate unzip + imagens inline) |
 
 ## Como usar
 
@@ -43,7 +47,11 @@ YKS-ViewDocs/
 ├── lib/                       # Bibliotecas de terceiros
 │   ├── mammoth.browser.js     # Conversor DOCX → HTML
 │   ├── marked.min.js          # Processador de Markdown
-│   └── rtf-parser.js          # Conversor RTF → HTML
+│   ├── rtf-parser.js          # Conversor RTF → HTML
+│   ├── fflate.min.js          # Descompactador ZIP (EPUB, CBZ)
+│   ├── epub-reader.js         # Leitor/locator de EPUB → HTML
+│   ├── foliate-mobi.js        # Leitor MOBI/AZW/KF8
+│   └── fb2-reader.js          # Leitor FB2 → HTML
 ├── styles/
 │   └── global.css             # Estilos base (tema escuro)
 ├── background/

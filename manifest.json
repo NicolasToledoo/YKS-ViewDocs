@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "YKS-ViewDocs",
   "version": "1.0.0",
-  "description": "Visualize documentos PDF, DOC, DOCX, RTF, TXT, MD diretamente no navegador.",
+  "description": "Visualize documentos PDF, DOC, DOCX, RTF, TXT, MD, EPUB, MOBI, AZW, AZW3, FB2 e CBZ diretamente no navegador.",
   "permissions": [
     "contextMenus",
     "storage",
